@@ -1,6 +1,8 @@
 package dev.eren.removebg
 
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.activity.ComponentActivity
@@ -89,7 +91,19 @@ fun RemoveBackground() {
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let {
-            inputImage.value = MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+            try {
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    // For Android P (API 28) and above, use ImageDecoder
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it))
+                } else {
+                    // For older Android versions, use the deprecated getBitmap (as a fallback)
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                }
+                inputImage.value = bitmap
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
