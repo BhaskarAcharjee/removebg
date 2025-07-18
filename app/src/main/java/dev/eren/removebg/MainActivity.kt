@@ -66,7 +66,7 @@ fun RemoveBackground() {
     val context = LocalContext.current
 
     val outputImage: MutableState<Bitmap?> = remember {
-        mutableStateOf<Bitmap?>(null)
+        mutableStateOf(null)
     }
 
     val inputImage: MutableState<Bitmap?> = remember {

@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.scale
 import dev.eren.removebg.common.ModelTypes
 import dev.eren.removebg.utils.FileUtils.assetFilePath
 import dev.eren.removebg.utils.NetUtils
@@ -22,7 +24,7 @@ import org.pytorch.torchvision.TensorImageUtils
 /**
  * Created by erenalpaslan on 18.08.2023
  */
-class RemoveBg(context: Context): Remover<Bitmap> {
+class RemoveBg(context: Context) : Remover<Bitmap> {
 
     private var module: Module = LiteModuleLoader.load(
         assetFilePath(
@@ -36,7 +38,7 @@ class RemoveBg(context: Context): Remover<Bitmap> {
     init {
         maskPaint.isAntiAlias = true
         maskPaint.style = Paint.Style.FILL
-        maskPaint.setXfermode(PorterDuffXfermode(PorterDuff.Mode.DST_IN))
+        maskPaint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
     }
 
     override fun clearBackground(image: Bitmap): Flow<Bitmap?> = flow {
@@ -45,7 +47,7 @@ class RemoveBg(context: Context): Remover<Bitmap> {
     }.flowOn(Dispatchers.IO)
 
     override fun getMaskedImage(input: Bitmap, mask: Bitmap): Bitmap {
-        val result = Bitmap.createBitmap(mask.width, mask.height, Bitmap.Config.ARGB_8888)
+        val result = createBitmap(mask.width, mask.height)
         val mCanvas = Canvas(result)
 
         mCanvas.drawBitmap(input, 0f, 0f, null)
@@ -57,7 +59,7 @@ class RemoveBg(context: Context): Remover<Bitmap> {
         val width = input.width
         val height = input.height
 
-        val scaledBitmap = Bitmap.createScaledBitmap(input, size, size, true)
+        val scaledBitmap = input.scale(size, size)
         val inputTensor = TensorImageUtils.bitmapToFloat32Tensor(
             scaledBitmap,
             TensorImageUtils.TORCHVISION_NORM_MEAN_RGB,
@@ -65,9 +67,7 @@ class RemoveBg(context: Context): Remover<Bitmap> {
         )
         val outputTensor = module.forward(IValue.from(inputTensor)).toTuple()
         val arr = outputTensor[0].toTensor().dataAsFloatArray
-        val scaledMask = NetUtils.convertArrayToBitmap(arr, size, size)?.let {
-            Bitmap.createScaledBitmap(it, width, height, true)
-        }
+        val scaledMask = NetUtils.convertArrayToBitmap(arr, size, size)?.scale(width, height)
         return scaledMask?.let { getMaskedImage(input, it) }
     }
 

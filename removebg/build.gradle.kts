@@ -1,13 +1,15 @@
-@Suppress("DSL_SCOPE_VIOLATION")
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlinAndroid)
     `maven-publish`
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
     namespace = "dev.eren.removebg"
-    compileSdk = 33
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 24
@@ -26,11 +28,14 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "1.8"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+            javaParameters.set(true)
+        }
     }
 
     publishing {
@@ -44,9 +49,10 @@ android {
 dependencies {
     implementation(libs.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.androidx.lifecycle.runtime)
+    implementation(libs.lifecycle.runtime.ktx)
     implementation(libs.pytorch.android.lite)
     implementation(libs.pytorch.android.torchvision.lite)
+    implementation(libs.androidx.runtime)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.ext.junit)
