@@ -3,49 +3,62 @@ package dev.eren.removebg
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.provider.MediaStore
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import dev.eren.removebg.ui.theme.RemovebgTheme
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 
-
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             RemovebgTheme {
@@ -65,85 +78,114 @@ class MainActivity : ComponentActivity() {
 fun RemoveBackground() {
     val context = LocalContext.current
 
-    val outputImage: MutableState<Bitmap?> = remember {
-        mutableStateOf(null)
-    }
+    val outputImage = remember { mutableStateOf<Bitmap?>(null) }
+    val inputImage = remember { mutableStateOf<Bitmap?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    var isReal by remember { mutableStateOf(false) }
 
-    val inputImage: MutableState<Bitmap?> = remember {
-        mutableStateOf(null)
-    }
+    val remover = remember { RemoveBg(context = context) }
 
     val pickMedia = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri ->
-            if (uri != null) {
-                inputImage.value =
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-            } else {
-                Log.d("PhotoPicker", "No media selected")
-            }
-        })
-
-    var loading: Boolean by remember {
-        mutableStateOf(false)
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let {
+            inputImage.value = MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+        }
     }
 
-    var isReal: Boolean by remember {
-        mutableStateOf(false)
-    }
-
-    val remover = remember {
-        RemoveBg(context = context)
-    }
-
-    LaunchedEffect(key1 = inputImage.value) {
+    // Trigger removal when inputImage changes
+    LaunchedEffect(inputImage.value) {
         inputImage.value?.let { image ->
             remover.clearBackground(image)
-                .onStart {
-                    loading = true
-                }
-                .onCompletion {
-                    loading = false
-                }.collect { output ->
-                    outputImage.value = output
+                .onStart { loading = true }
+                .onCompletion { loading = false }
+                .collect { result ->
+                    outputImage.value = result
                 }
         }
     }
 
-    Scaffold { paddingValues ->
-        Box(modifier = Modifier.background(Color.White)) {
-            Row(
-                horizontalArrangement = Arrangement.End,
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .fillMaxWidth()
-            ) {
-                Button(onClick = {
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
                     pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }) {
-                    Text(text = "Open Gallery")
-                }
+                },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Pick Image")
             }
+        }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (loading) {
-                    CircularProgressIndicator()
-                }
-                if (outputImage.value != null && inputImage.value != null) {
-                    Image(
-                        bitmap = if (!isReal) outputImage.value!!.asImageBitmap() else inputImage.value!!.asImageBitmap(),
-                        contentDescription = "",
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                isReal = !isReal
+                when {
+                    loading -> {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Removing background...", style = MaterialTheme.typography.bodyMedium)
+                    }
+
+                    inputImage.value != null && outputImage.value != null -> {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(3f / 4f)
+                                .clickable { isReal = !isReal },
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(8.dp)
+                        ) {
+                            AnimatedContent(
+                                targetState = isReal,
+                                label = "ImageSwitcher"
+                            ) { showOriginal ->
+                                val bitmap =
+                                    if (showOriginal) inputImage.value else outputImage.value
+                                bitmap?.let {
+                                    Image(
+                                        bitmap = it.asImageBitmap(),
+                                        contentDescription = "Image",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
-                    )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AssistChip(
+                            onClick = { isReal = !isReal },
+                            label = {
+                                Text(if (isReal) "Showing: Original" else "Showing: Background Removed")
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (isReal) Icons.Default.FavoriteBorder else Icons.Default.Favorite,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                    }
+
+                    else -> {
+                        Text(
+                            text = "Pick an image to remove background",
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
